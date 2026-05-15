@@ -32,7 +32,7 @@ cp -a *.png %{buildroot}/usr/share/themes/sailfish-default/silica/icons-monochro
 
 %files
 %defattr(-,root,root,-)
-%doc README.md
+%doc readme.md
 /usr/share/sailfish-weather/backends/OpenQWeatherBackend.qml
 /usr/share/themes/sailfish-default/silica/icons-monochrome/qweather.png
 /usr/share/themes/sailfish-default/silica/icons-monochrome/qweather-small.png
