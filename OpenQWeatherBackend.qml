@@ -86,7 +86,7 @@ QtObject {
             return ""
         }
         if (isHourly) {
-            return "https://" + config.host + "/v7/weather/12h?location=" + weather.longitude + "," + weather.latitude + "&key=" + config.key
+            return "https://" + config.host + "/v7/weather/24h?location=" + weather.longitude + "," + weather.latitude + "&key=" + config.key
         } else {
             return "https://" + config.host + "/v7/weather/7d?location=" + weather.longitude + "," + weather.latitude + "&key=" + config.key
         }
