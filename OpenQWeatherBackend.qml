@@ -31,6 +31,8 @@ QtObject {
                + "<ol><li>打开<b><a href='https://dev.qweather.com/'>和风天气开放平台</a></b> 并注册一个开发者账号。</li>"
                + "<li>创建一个应用，类型选<b>WebAPI</b>，点击新建。</li>"
                + "<li>获取你的 <b>KEY</b> 和对应的 <b>API 域名</b>。</li>"
+               + "<li>API HOST 通过 <a href='https://console.qweather.com/setting'>https://console.qweather.com/setting</a> 进入查看</li>"
+               + "<li>KEY 通过 <a href='https://console.qweather.com/project?lang=zh'>https://console.qweather.com/project?lang=zh</a> 进入查看</li>"
                + "<li>将域名和KEY用<strong>英文逗号</strong>分隔填写，例如：<code>devapi.qweather.com,你的KEY</code></li></ol>"
     }
 
@@ -84,7 +86,7 @@ QtObject {
             return ""
         }
         if (isHourly) {
-            return "https://" + config.host + "/v7/weather/8h?location=" + weather.longitude + "," + weather.latitude + "&key=" + config.key
+            return "https://" + config.host + "/v7/weather/12h?location=" + weather.longitude + "," + weather.latitude + "&key=" + config.key
         } else {
             return "https://" + config.host + "/v7/weather/7d?location=" + weather.longitude + "," + weather.latitude + "&key=" + config.key
         }
@@ -107,7 +109,7 @@ QtObject {
         var weatherCode = now.icon || "100"
         var isDay = isDaytimeIcon(weatherCode)
 
-        var weather = getWeatherData(weatherCode, isDay)
+        var weather = getWeatherData(weatherCode, isDay, now.text, now.cloud)
         weather.timestamp = new Date(now.obsTime.replace(/-/g, '/'))
         weather.temperature = parseFloat(now.temp)
         weather.feelsLikeTemperature = parseFloat(now.feelsLike)
@@ -117,11 +119,11 @@ QtObject {
             weather.longitude = parseFloat(result.location.lon)
         }
 
-        if (now.wind360) {
-            weather.windDirection = windDirectionToDegree(now.wind360)
+        if (now.windDir) {
+            weather.windDirection = windDirectionToDegree(now.windDir)
         }
         if (now.windSpeed) {
-            weather.maximumWindSpeed = Math.round(parseFloat(now.windSpeed))
+            weather.maximumWindSpeed = parseWindSpeed(now.windSpeed)
         }
 
         if (now.humidity !== undefined) {
@@ -157,7 +159,7 @@ QtObject {
             var weatherCode = data.icon || "100"
             var isDay = isDaytimeIcon(weatherCode)
 
-            var weather = getWeatherData(weatherCode, isDay)
+            var weather = getWeatherData(weatherCode, isDay, data.text, data.cloud)
             weather.timestamp = new Date(data.fxTime.replace(/-/g, '/'))
             weather.temperature = parseFloat(data.temp)
 
@@ -165,11 +167,16 @@ QtObject {
                 weather.feelsLikeTemperature = parseFloat(data.feelsLike)
             }
 
-            if (data.wind360Day) {
-                weather.windDirection = windDirectionToDegree(data.wind360Day)
+            if (data.windDir) {
+                weather.windDirection = windDirectionToDegree(data.windDir)
             }
-            if (data.windSpeedDay) {
-                weather.maximumWindSpeed = Math.round(parseFloat(data.windSpeedDay))
+            if (data.windSpeed) {
+                weather.maximumWindSpeed = parseWindSpeed(data.windSpeed)
+            }
+            if (data.precip) {
+                weather.accumulatedPrecipitation = data.precip
+            } else {
+                weather.accumulatedPrecipitation = 0
             }
 
             if (data.pop !== undefined) {
@@ -201,22 +208,25 @@ QtObject {
             var weatherCode = data.iconDay || "100"
             var isDay = isDaytimeIcon(weatherCode)
 
-            var weather = getWeatherData(weatherCode, isDay)
+            var descriptionText = data.textDay && data.textNight && data.textDay !== data.textNight
+                ? data.textDay + "转" + data.textNight
+                : (data.textDay || data.textNight || "")
+            var weather = getWeatherData(weatherCode, isDay, descriptionText, data.cloud)
             weather.timestamp = new Date(data.fxDate.replace(/-/g, '/'))
             weather.high = Math.floor(parseFloat(data.tempMax))
             weather.low = Math.round(parseFloat(data.tempMin))
 
-            if (data.precip !== undefined) {
-                weather.accumulatedPrecipitation = parseFloat(data.precip)
+            if (data.precip) {
+                weather.accumulatedPrecipitation = data.precip
             } else {
                 weather.accumulatedPrecipitation = 0
             }
 
             if (data.windSpeedDay) {
-                weather.maximumWindSpeed = Math.round(parseFloat(data.windSpeedDay))
+                weather.maximumWindSpeed = parseWindSpeed(data.windSpeedDay)
             }
             if (data.wind360Day) {
-                weather.windDirection = windDirectionToDegree(data.wind360Day)
+                weather.windDirection = parseFloat(data.wind360Day)
             }
 
             weatherData[weatherData.length] = weather
@@ -298,13 +308,13 @@ QtObject {
         return true
     }
 
-    function getWeatherData(weatherCode, isDay) {
+    function getWeatherData(weatherCode, isDay, descriptionText, cloudiness) {
         var weatherTypeCode = weatherTypeFromQWeather(weatherCode)
         var timePrefix = isDay === 0 ? "n" : "d"
         return {
-            "description": WeatherTypeDescriptions.description(timePrefix + weatherTypeCode),
+            "description": descriptionText || "",
             "weatherType": weatherType(timePrefix + weatherTypeCode),
-            "cloudiness": cloudinessFromQWeather(weatherCode)
+            "cloudiness": cloudiness !== undefined ? parseInt(cloudiness) : 0
         }
     }
 
@@ -318,34 +328,34 @@ QtObject {
 
         switch (code) {
         case 100: return "000"
-        case 101:
-        case 102: return "100"
+        case 101: return "300"
+        case 102: return "200"
         case 103: return "200"
         case 104: return "400"
-        case 150:
-        case 151:
-        case 152:
-        case 153: return "100"
+        case 150: return "000"
+        case 151: return "300"
+        case 152: return "200"
+        case 153: return "200"
         case 300: return "210"
         case 301: return "310"
-        case 302: return "220"
-        case 303: return "320"
-        case 304: return "420"
+        case 302: return "440"
+        case 303: return "440"
+        case 304: return "440"
         case 305: return "210"
-        case 306: return "420"
+        case 306: return "430"
         case 307: return "430"
         case 308: return "440"
         case 309: return "210"
         case 310: return "440"
         case 311: return "440"
         case 312: return "440"
-        case 313: return "420"
-        case 314: return "420"
-        case 315: return "420"
+        case 313: return "410"
+        case 314: return "410"
+        case 315: return "410"
         case 316: return "420"
         case 317: return "430"
-        case 318: return "440"
-        case 350:
+        case 318: return "430"
+        case 350: return "420"
         case 351: return "420"
         case 399: return "430"
         case 400: return "212"
@@ -431,6 +441,10 @@ QtObject {
             "NNW": 337.5
         }
         return directions[dir] !== undefined ? directions[dir] : 0
+    }
+
+    function parseWindSpeed(value) {
+        return Math.round(parseFloat(value))
     }
 
     function hashLatLon(lat, lon, precisionBits, seed) {
