@@ -1,5 +1,8 @@
 # 旗鱼天气和风天气后端实现
 
+> 大部分是AI写的，存在问题很正常，欢迎提交Pull Request。
+> 
+
 ## 注册 API
 
 访问 https://dev.qweather.com/ 注册和风天气开放平台账号，创建一个 WebAPI 类型的应用以获取 KEY。

@@ -107,10 +107,12 @@ QtObject {
 
         var now = result.now
         var weatherCode = now.icon || "100"
-        var isDay = isDaytimeIcon(weatherCode)
+        var timestamp = new Date(now.obsTime.replace(/-/g, '/'))
+        var latitude = result.location ? parseFloat(result.location.lat) : 30
+        var isDay = isDaytime(timestamp, latitude)
 
         var weather = getWeatherData(weatherCode, isDay, now.text, now.cloud)
-        weather.timestamp = new Date(now.obsTime.replace(/-/g, '/'))
+        weather.timestamp = timestamp
         weather.temperature = parseFloat(now.temp)
         weather.feelsLikeTemperature = parseFloat(now.feelsLike)
 
@@ -157,10 +159,12 @@ QtObject {
             }
 
             var weatherCode = data.icon || "100"
-            var isDay = isDaytimeIcon(weatherCode)
+            var timestamp = new Date(data.fxTime.replace(/-/g, '/'))
+            var latitude = result.location ? parseFloat(result.location.lat) : 30
+            var isDay = isDaytime(timestamp, latitude)
 
             var weather = getWeatherData(weatherCode, isDay, data.text, data.cloud)
-            weather.timestamp = new Date(data.fxTime.replace(/-/g, '/'))
+            weather.timestamp = timestamp
             weather.temperature = parseFloat(data.temp)
 
             if (data.feelsLike) {
@@ -205,8 +209,19 @@ QtObject {
                 continue
             }
 
-            var weatherCode = data.iconDay || "100"
-            var isDay = isDaytimeIcon(weatherCode)
+            var dateStr = data.fxDate.replace(/-/g, '/')
+            var timestamp = new Date(dateStr)
+
+            var isDay = true
+            if (data.sunrise && data.sunset) {
+                var sunriseTime = new Date(dateStr + ' ' + data.sunrise)
+                var sunsetTime = new Date(dateStr + ' ' + data.sunset)
+                var midday = new Date(dateStr)
+                midday.setHours(12, 0, 0, 0)
+                isDay = midday >= sunriseTime && midday < sunsetTime
+            }
+
+            var weatherCode = isDay ? (data.iconDay || "100") : (data.iconNight || data.iconDay || "100")
 
             var descriptionText = data.textDay && data.textNight && data.textDay !== data.textNight
                 ? data.textDay + "转" + data.textNight
@@ -296,16 +311,37 @@ QtObject {
         var code = parseInt(icon, 10)
         if (isNaN(code)) return true
 
-        if (code >= 100 && code <= 154) {
-            return code <= 104
+        if (code >= 100 && code <= 104) {
+            return true
+        }
+        if (code >= 150 && code <= 154) {
+            return false
         }
         if (code >= 300 && code <= 318) {
-            return code <= 318
+            return true
         }
         if (code >= 350 && code <= 399) {
             return false
         }
         return true
+    }
+
+    function isDaytime(timestamp, latitude) {
+        if (!timestamp) return true
+        var dayOfYear = Math.floor((timestamp - new Date(timestamp.getFullYear(), 0, 0)) / 86400000)
+        var lat = latitude !== undefined ? latitude : 30
+        var declination = 23.44 * Math.sin((2 * Math.PI / 365) * (dayOfYear - 81))
+        var latRad = lat * Math.PI / 180
+        var decRad = declination * Math.PI / 180
+        var cosHourAngle = -Math.tan(latRad) * Math.tan(decRad)
+        if (cosHourAngle > 1) return false
+        if (cosHourAngle < -1) return true
+        var hourAngle = Math.acos(cosHourAngle) * 180 / Math.PI
+        var solarNoon = 12
+        var sunrise = solarNoon - hourAngle / 15
+        var sunset = solarNoon + hourAngle / 15
+        var hour = timestamp.getHours() + timestamp.getMinutes() / 60
+        return hour >= sunrise && hour < sunset
     }
 
     function getWeatherData(weatherCode, isDay, descriptionText, cloudiness) {
